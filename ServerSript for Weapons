@@ -1,0 +1,404 @@
+--Services--
+local sss = game:GetService("ServerScriptService")
+local uis = game:GetService("UserInputService")
+local rs = game:GetService("ReplicatedStorage")
+local players = game:GetService("Players")
+local contentprovider = game:GetService("ContentProvider")
+local runservice = game:GetService("RunService")
+local starterplayer = game:GetService("StarterPlayer")
+local characterscripts = starterplayer:WaitForChild("StarterCharacterScripts")
+
+--Events--
+local attackevent = rs:FindFirstChild("AttackEvent")
+local weaponevent = rs:FindFirstChild("WeaponEvent")
+local arrowevent = rs:FindFirstChild("ArrowDamage")
+--Weapons---
+local Weapons = rs.Models.Weapons
+local weaponwelds = script.Welds.Weapons
+
+--tables--
+local welds= {}
+
+--modules--
+local lock = require(rs:WaitForChild("Shiftlock"))
+
+--animations--
+local planims = characterscripts.LocalScript.PlAnims
+local WeaponAnim = rs.Animations.Weapons
+local equipanims = {}
+local unequipanims = {}
+local idleanim = {}
+local animdebounce = {}
+
+--Preload---
+local animations = {}
+
+for i, v in WeaponAnim:GetDescendants() do
+	if v:IsA("Animation") then
+		table.insert(animations, v)
+	end
+end
+for i, v in planims:GetDescendants() do
+	if v:IsA("Animation") then
+		table.insert(animations, v)
+	end
+end
+
+------------
+
+players.PlayerAdded:Connect(function(player)
+	player.CharacterAdded:Connect(function(character)
+		local debouncer = character:WaitForChild("Debouncer")
+		if debouncer == false then
+			debouncer.Value = true
+		end
+		local torso = character:WaitForChild("Torso")
+		local basicsword = Weapons.BasicSword:Clone()
+		local Bow = Weapons.Bow:Clone()
+		local Humanoid = player.Character:WaitForChild("Humanoid")
+		
+		
+		--sword--
+		basicsword.Parent = character
+		welds[player] = weaponwelds.BasicSword.WeaponWeld:Clone()
+		welds[player].Parent = torso
+		welds[player].Part0 = torso
+		welds[player].Part1 = basicsword
+		
+		--bow--
+		Bow.Parent = character
+		welds[player] = weaponwelds.Bow.TorsoWeld:Clone()
+		welds[player].Parent = torso
+		welds[player].Part0 = torso
+		welds[player].Part1 = Bow
+		player:SetAttribute("Equipped", false)
+		
+		
+		if Humanoid then
+			local animator = Humanoid:FindFirstChild("Animator")
+			if animator then
+				for i, v in animations do
+					local track = animator:LoadAnimation(v)
+					track:Play()
+					task.wait(0.1)
+					track:Stop()	
+				end
+			end
+		end	
+		debouncer.Value = false
+	end)	
+end)
+
+
+players.PlayerRemoving:Connect(function(player)
+	if welds[player] then
+		table.remove(welds, table.find(welds, welds[player]))
+	end
+end)
+
+-----Weapon Equipping-----
+
+weaponevent.OnServerEvent:Connect(function(player, action)
+	local char = player.Character
+	local humanoid = char.Humanoid
+	local torso = char.Torso
+	local rightarm = char["Right Arm"]
+	local leftarm = char["Left Arm"]
+------Sword---------
+	if action == "Sword" and not player:GetAttribute("Equipped") and not animdebounce[player] then
+		animdebounce[player] = true
+		player:SetAttribute("Equipped", true)
+		
+		equipanims[player] = humanoid.Animator:LoadAnimation(WeaponAnim.Sword.Main.Equip)
+		equipanims[player]:Play()
+
+		equipanims[player]:GetMarkerReachedSignal("Weld"):Connect(function()
+			local basicsword = char.BasicSword
+			torso.WeaponWeld:Destroy()
+			welds[player] = weaponwelds.BasicSword.EquipWeld:Clone()
+			welds[player].Parent = rightarm
+			welds[player].Part0 = rightarm
+			welds[player].Part1 = basicsword
+		end)
+		
+		equipanims[player]:GetMarkerReachedSignal("Equipped"):Connect(function()
+			idleanim[player] = humanoid.Animator:LoadAnimation(WeaponAnim.Sword.Main.Idle)
+			idleanim[player]:Play()
+			animdebounce[player] = false
+		end)		
+			
+	elseif action == "Sword" and player:GetAttribute("Equipped") and not animdebounce[player] then
+		animdebounce[player] = true
+		player:SetAttribute("Equipped", false)
+		
+		idleanim[player]:Stop()
+		unequipanims[player] = humanoid.Animator:LoadAnimation(WeaponAnim.Sword.Main.UnEquip)
+		unequipanims[player]:Play()
+		
+		unequipanims[player]:GetMarkerReachedSignal("Weld"):Connect(function()
+			local basicsword = char.BasicSword
+			rightarm.EquipWeld:Destroy()
+			welds[player] = weaponwelds.BasicSword.WeaponWeld:Clone()
+			welds[player].Parent = torso
+			welds[player].Part0 = torso
+			welds[player].Part1 = basicsword
+			unequipanims[player]:GetMarkerReachedSignal("UnEquipped"):Connect(function()
+				weaponevent:FireClient(player)
+				animdebounce[player] = false
+			end)
+		end)
+		
+		----------Bow------------
+		
+	elseif action == "Bow" and not player:GetAttribute("Equipped") and not animdebounce[player] then
+		animdebounce[player] = true
+		player:SetAttribute("Equipped", true)
+		
+		equipanims[player] = humanoid.Animator:LoadAnimation(WeaponAnim.Bow.Main.Equip)
+		equipanims[player]:Play()
+		
+		equipanims[player]:GetMarkerReachedSignal("Weld"):Connect(function()
+			local Bow = char.Bow
+			torso.TorsoWeld:Destroy()
+			welds[player] = weaponwelds.Bow.EquipWeld:Clone()
+			welds[player].Parent = leftarm
+			welds[player].Part0 = leftarm
+			welds[player].Part1 = Bow
+		end)
+		
+		equipanims[player]:GetMarkerReachedSignal("Equipped"):Connect(function()
+			idleanim[player] = humanoid.Animator:LoadAnimation(WeaponAnim.Bow.Main.Idle)
+			idleanim[player]:Play()
+			animdebounce[player] = false
+		end)
+		
+	elseif action == "Bow" and player:GetAttribute("Equipped") and not animdebounce[player] then
+		animdebounce[player] = true
+		player:SetAttribute("Equipped", false)
+		
+		idleanim[player]:Stop()
+		unequipanims[player] = humanoid.Animator:LoadAnimation(WeaponAnim.Bow.Main.UnEquip)
+		unequipanims[player]:Play()
+		
+		unequipanims[player]:GetMarkerReachedSignal("Weld"):Connect(function()
+			local Bow = char.Bow
+			leftarm.EquipWeld:Destroy()
+			welds[player] = weaponwelds.Bow.TorsoWeld:Clone()
+			welds[player].Parent = torso
+			welds[player].Part0 = torso
+			welds[player].Part1 = Bow
+		end)
+		
+		unequipanims[player]:GetMarkerReachedSignal("Unequip"):Connect(function()
+			weaponevent:FireClient(player)
+			animdebounce[player] = false
+		end)	
+	end
+end)
+
+
+--------Attacking------------------------
+
+local swordattack = WeaponAnim.Sword
+local bowattack= WeaponAnim.Bow
+local arrowsfired = 0
+local attackanim = {}
+local m1 = 0
+
+attackevent.OnServerEvent:Connect(function(player, weep, Parried, dir, pow, damage)
+	local parthit = {}
+	
+	local char = player.Character
+	local humanoid = char:FindFirstChild("Humanoid")
+	local bow = char.Bow
+	local basicsword = char.BasicSword
+	local reset = 0
+
+	
+	if Parried == true then return end
+	
+	if player:GetAttribute("Equipped") and not animdebounce[player] then
+		animdebounce[player] = true
+		humanoid.WalkSpeed = 5
+		
+		if weep == "Sword" then
+			if m1 == 0 then
+				reset = 1
+				idleanim[player]:Stop()
+				m1 += 1
+				attackanim[player] = humanoid.Animator:LoadAnimation(swordattack.Attack.M1.main1)
+				attackanim[player]:Play()
+				attackanim[player]:GetMarkerReachedSignal("Attack"):Connect(function()
+					attackevent:FireClient(player, basicsword, reset)	
+				end)
+				attackanim[player]:GetMarkerReachedSignal("End"):Connect(function()
+					animdebounce[player] = false
+					attackanim[player]:GetMarkerReachedSignal("StartIdle"):Connect(function()
+						if m1 == 1 then
+							idleanim[player]:Play()
+							humanoid.WalkSpeed = 16
+						end
+					end)
+				end)
+				
+			elseif m1 == 1 then
+				reset = 2
+				idleanim[player]:Stop()
+				m1 += 1
+				attackanim[player] = humanoid.Animator:LoadAnimation(swordattack.Attack.M1.main2)
+				attackanim[player]:Play()
+				attackanim[player]:GetMarkerReachedSignal("Attack"):Connect(function()
+					attackevent:FireClient(player, basicsword, reset)
+				end)
+				attackanim[player]:GetMarkerReachedSignal("End"):Connect(function()
+					animdebounce[player] = false
+					attackanim[player]:GetMarkerReachedSignal("StartIdle"):Connect(function()
+						if m1 == 2 then
+							idleanim[player]:Play()
+							humanoid.WalkSpeed = 16
+						end
+					end)
+				end)
+				
+			elseif m1 == 2 then
+				reset = 3
+				idleanim[player]:Stop()
+				m1 -= 2
+				attackanim[player] = humanoid.Animator:LoadAnimation(swordattack.Attack.M1.main3)
+				attackanim[player]:Play()	
+				attackanim[player]:GetMarkerReachedSignal("Attack"):Connect(function()
+					attackevent:FireClient(player, basicsword, reset)
+				end)
+				attackanim[player]:GetMarkerReachedSignal("StartIdle"):Connect(function()
+					idleanim[player]:Play()
+					humanoid.WalkSpeed = 16
+					
+					local debouncer = char:FindFirstChild("Debouncer")
+					debouncer.Value = true
+					task.wait(1)
+					debouncer.Value = false
+					animdebounce[player] = false
+					reset = 0
+				end)		
+			end	
+			
+			---------------BOW-------------
+			
+		elseif weep == "Bow" then
+			
+			local arrow = Weapons.Arrow:Clone()
+			arrow.CanCollide = false
+			arrow.CFrame = char.Head.CFrame * CFrame.new(0, -0.5, -2) 
+			arrow.Velocity = dir * (pow * 100)
+			arrow.Parent = workspace
+			
+
+			local hitbox = Instance.new("Part")
+			hitbox.CanCollide = false
+			hitbox.Massless = true
+			hitbox.Transparency = 0.5
+			hitbox.Size = arrow.Size * 1.5
+			hitbox.CFrame = arrow.CFrame
+			hitbox.Parent = workspace
+			hitbox.Name = "hitbox"
+
+			local boxweld = Instance.new("WeldConstraint")
+			boxweld.Part0 = arrow
+			boxweld.Part1 = hitbox
+			boxweld.Parent = arrow	
+			humanoid.WalkSpeed = 16
+			animdebounce[player] = false
+			
+			
+			arrowsfired += 1
+			
+			
+			local function CollisionCheck()
+				for i, v in workspace:GetPartsInPart(hitbox) do
+
+					local function GetCharacterModel(part)
+						while part and part.Parent do
+							if part.Parent:FindFirstChild("Humanoid") then
+								return part.Parent
+							end
+							part = part.Parent
+						end
+						return nil
+					end
+
+					if  v:IsA("BasePart") and not v:IsDescendantOf(char) and v ~= arrow and not parthit[v.Name] and v.Name ~= "Arrow" then
+						print("hit", v)
+						arrow.Velocity = Vector3.zero
+						arrow.Parent = v
+						local weld = Instance.new("WeldConstraint")
+						weld.Part0 = arrow
+						weld.Part1 = v
+						weld.Parent = arrow			
+						arrow.CFrame = v.CFrame * v.CFrame:ToObjectSpace(arrow.CFrame)
+
+						local character = GetCharacterModel(v)
+
+						if character and not parthit[character.Name] then
+							parthit[character.Name] = true
+							local huzz = character:FindFirstChild("Humanoid")
+							if huzz then
+								arrowevent:Fire(huzz, damage)
+								hitbox:Destroy()
+								arrowsfired -= 1
+							end		
+						elseif v.Parent ~= workspace then
+							if not parthit[v.Parent.Name] then
+								parthit[v.Parent.Name] = true
+								hitbox:Destroy()
+								arrowsfired -= 1
+							end
+						elseif v.Parent == workspace then
+							hitbox:Destroy()
+							arrowsfired -= 1
+						end
+					end	
+				end
+				print(arrowsfired)
+			end
+			
+			
+			local lastPos = arrow.Position 
+			
+			local function arrowphysics()
+				if arrowsfired > 0 then
+					local currentarrowveloc = arrow.AssemblyLinearVelocity
+					local nextpos = arrow.Position + currentarrowveloc
+					
+					
+					local raycastParams = RaycastParams.new()
+					raycastParams.FilterDescendantsInstances = {char, arrow} -- Ignore shooter and arrow itself
+					raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+					raycastParams.IgnoreWater = true
+
+					local rayResult = workspace:Raycast(lastPos, (nextpos - lastPos), raycastParams)
+
+					if rayResult then
+						local hitPart = rayResult.Instance
+						if hitPart and hitPart.Parent then
+							print("Arrow hit detected with raycast:", hitPart)
+							-- Run your hit detection logic
+							CollisionCheck(hitPart)
+						end
+					end
+					
+					arrow.CFrame = CFrame.lookAt(arrow.Position,nextpos)
+					lastPos = arrow.Position
+				end
+			end
+			
+			
+			
+			while arrowsfired > 0 do
+				CollisionCheck()
+				arrowphysics()
+				task.wait()
+				
+			end
+		end
+	end
+end)
