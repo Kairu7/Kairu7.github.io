@@ -1,0 +1,34 @@
+local knockback = {}
+
+function knockback.Create(hum, player, time, speed)
+	
+
+	local char = hum.Parent
+	local humroot = player.Character:FindFirstChild("HumanoidRootPart")
+	if hum.Health < 1 then
+		local force = 80000
+		local KnockBack = Instance.new("BodyVelocity")
+		KnockBack.Parent = char:FindFirstChild("HumanoidRootPart")
+		KnockBack.MaxForce = Vector3.new(force, force, force)
+		KnockBack.Velocity = humroot.CFrame.LookVector * speed
+		
+		task.delay(time, function()
+			KnockBack:Destroy()
+		end)
+		
+	elseif hum.Health > 1 then
+		local force = 80000
+		local KnockBack = Instance.new("BodyVelocity")
+		KnockBack.Parent = char:FindFirstChild("HumanoidRootPart")
+		KnockBack.MaxForce = Vector3.new(force, force, force)
+		KnockBack.Velocity = humroot.CFrame.LookVector * speed
+
+		task.delay(0.2, function()
+			KnockBack:Destroy()
+		end)
+	end
+end
+
+
+
+return knockback
