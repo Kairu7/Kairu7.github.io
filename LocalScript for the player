@@ -1,0 +1,271 @@
+--services--
+local uis = game:GetService("UserInputService")
+local rs = game:GetService("ReplicatedStorage")
+local sss = game:GetService("ServerScriptService")
+local players = game:GetService("Players")
+local cas = game:GetService("ContextActionService")
+local runservice = game:GetService("RunService")
+local tweenservice = game:GetService("TweenService")
+--Events--
+local weaponevent = rs:FindFirstChild("WeaponEvent")
+local attackevent = rs:FindFirstChild("AttackEvent")
+local damage = script:WaitForChild("Bowanim") and script.Bowanim:WaitForChild("damagerf")
+local togglehit = script.Bowanim.togglehit
+local swordrf = script.Bowanim.Sword
+local receiveddam = script.Bowanim.ReceivedDamage
+local blocking = script.Bowanim.Blocking
+local EnableLock = rs.EnableLock
+--Folders--
+local WeaponAnims = rs.Animations.Weapons
+local weapons = rs.Models.Weapons
+--Player---
+local player = players.LocalPlayer
+local mouse = player:GetMouse()
+local char = player.Character
+local hum = char:WaitForChild("Humanoid")
+local humroot = hum.RootPart
+local sword = char:WaitForChild("BasicSword")
+local animator = hum:FindFirstChild("Animator")	
+
+--gui--
+local playergui = player:WaitForChild("PlayerGui")
+local Bowcharge = playergui.BowCharge
+local Chargemeter = Bowcharge.OuterFrame.InnerFrame
+
+
+
+--boleans--
+local Parried = char:FindFirstChild("Parried")
+
+local Debouncer = char:FindFirstChild("Debouncer")
+
+
+
+Parried.Changed:Connect(function()
+	if Parried.Value == true then
+		Debouncer.Value = true
+	else
+		Debouncer.Value = false
+	end
+	
+end)
+
+--modules---
+local lock = require(rs:FindFirstChild("Shiftlock"))
+-----------
+
+
+local tweeninfo = TweenInfo.new(0.1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+
+local locked = false
+local equipped = nil
+local toggle = 0
+
+
+
+uis.InputEnded:Connect(function(input, IsTyping)
+	if IsTyping then return end
+	if Debouncer.Value == true then return end
+	
+	weaponevent.OnClientEvent:Connect(function()
+		if equipped == "Sword" then
+			weaponevent:FireServer("Sword")
+		elseif equipped == "Bow" then
+			weaponevent:FireServer("Bow")
+		end
+	end)
+	
+	if input.KeyCode == Enum.KeyCode.One then
+		if not equipped then
+			lock.shiftlock(player, true, Debouncer) 
+			equipped = "Sword"
+			weaponevent:FireServer("Sword")
+		elseif equipped == "Sword" then
+			lock.shiftlock(player, false, Debouncer)
+			equipped = nil
+			weaponevent:FireServer("Sword")
+		elseif equipped == "Bow" then
+			equipped = "Sword"
+			weaponevent:FireServer("Bow")
+		end
+		
+	elseif input.KeyCode == Enum.KeyCode.Two then	
+		if not equipped then
+			lock.shiftlock(player, true, Debouncer)
+			equipped = "Bow"
+			weaponevent:FireServer("Bow")
+		elseif equipped == "Bow" then
+			lock.shiftlock(player, false, Debouncer)
+			equipped = nil
+			weaponevent:FireServer("Bow")
+		elseif equipped == "Sword" then
+			equipped = "Bow"
+			weaponevent:FireServer("Sword")
+		end
+		
+		--hitbox toggle--
+	elseif input.KeyCode == Enum.KeyCode.Q then
+		if toggle == 0 then
+			toggle = 1 
+			togglehit:InvokeServer(toggle)
+		elseif toggle == 1 then
+			toggle = 0
+			togglehit:InvokeServer(toggle)
+		end
+	end
+end)
+
+
+--bowattack--
+
+local chargetween = nil
+local drawStart = nil
+local animate = 0
+
+uis.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if Debouncer.Value == true then return end
+
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if equipped == "Bow" then
+			animate = 1
+			drawStart = os.clock()
+			damage:InvokeServer(animate, hum)
+			
+			while drawStart do
+				local chargetime = os.clock() - drawStart
+				local sizescale = math.clamp(chargetime/10, 0 ,1)
+				
+				if chargetween then chargetween:Cancel() end
+				Bowcharge.Enabled = true
+				local goal = {Size = UDim2.new(sizescale, 0, 1, 0)}
+				chargetween = tweenservice:Create(Chargemeter, tweeninfo, goal)
+				chargetween:Play()
+				
+				task.wait()
+			end
+			
+		elseif equipped == "Sword" then
+			attackevent:FireServer(equipped, Parried)
+		end
+	end
+end)
+uis.InputEnded:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	
+
+	if input.UserInputType == Enum.UserInputType.MouseButton1 and equipped == "Bow" then
+		if drawStart then
+			animate = 0
+			damage:InvokeServer(animate, hum)
+			local chargeTime = os.clock() - drawStart
+			drawStart = nil
+			
+			if chargetween then chargetween:Cancel() end
+			Bowcharge.Enabled = false
+			
+			if chargeTime < 0.5 then
+				print("Bow shot canceled, not enough charge time!")
+				return
+			end
+
+			local power = math.clamp(chargeTime, 1, 100)
+			local damage = power * 10
+			print(damage)
+			local direction = (mouse.Hit.Position - char.Head.Position).unit
+			attackevent:FireServer(equipped, Parried, direction, power, damage)
+			Debouncer.Value = true
+			task.wait(0.5)
+			Debouncer.Value = false
+		end
+	end
+end)
+
+
+--Swordhitbox--
+
+
+attackevent.OnClientEvent:Connect(function(sword, reset)
+	local hitbox = Instance.new("Part")
+	local humanoidRootPart = char:FindFirstChild("HumanoidRootPart")
+	local forwardOffset = humanoidRootPart.CFrame.LookVector * 3
+	local humshit = {}
+	
+	hitbox.Size = Vector3.new(3.5, 3.5, 3.5) 
+	hitbox.CFrame = sword.CFrame
+	hitbox.Transparency = 1
+	hitbox.Anchored = true
+	hitbox.CanCollide = false
+	hitbox.Parent = workspace
+	hitbox.CFrame = humanoidRootPart.CFrame + forwardOffset
+	local dam = 25
+
+	
+	for i, v in workspace:GetPartsInPart(hitbox) do
+		local hum = v.Parent:FindFirstChild("Humanoid")
+		if hum and hum.Parent and hum.Parent ~= char then
+			local plyer = game.Players:GetPlayerFromCharacter(hum.Parent)
+			if plyer and not humshit[v.Parent.Name] then
+				humshit[v.Parent.Name] = true
+				local dummy = false
+				swordrf:InvokeServer(hum, dam, plyer, dummy, reset)
+				
+			elseif not plyer and not humshit[v.Parent.Name] then
+				humshit[v.Parent.Name] = true
+				local dummy = true
+				swordrf:InvokeServer(hum, dam, plyer, dummy, reset)
+			end
+		end
+	end
+	hitbox:Destroy()
+end)
+
+--blocking----
+local isblocking = 0
+local shit = 0
+
+uis.InputBegan:Connect(function(input, GameProcessed)
+	isblocking = 1
+	if GameProcessed then return end
+	if Debouncer.Value == true then return end
+	
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		if equipped == "Sword" then
+			blocking:InvokeServer(animator, isblocking)
+		end
+	end
+end)
+
+uis.InputEnded:Connect(function(input, GameProcessed)
+	
+	if GameProcessed then return end
+	if Debouncer.Value == true then return end
+
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		if equipped == "Sword" then
+			isblocking = 0
+			blocking:InvokeServer(animator, isblocking)
+		end
+	end
+end)
+
+-----damagedevent----
+local lasthealth = hum.Health
+
+
+hum.HealthChanged:Connect(function(newHealth)
+	if newHealth < lasthealth then
+		receiveddam:InvokeServer(char, humroot)	
+	end
+	lasthealth = newHealth
+end)
+
+
+hum.Died:Once(function()
+	lock.shiftlock(player, false, Debouncer)
+	Debouncer.Value = true
+end)
+
+EnableLock.OnClientEvent:Connect(function(tf, deb)
+	lock.shiftlock(player, tf, deb)
+end)
