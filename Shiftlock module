@@ -1,0 +1,33 @@
+local lock = {}
+
+function lock.shiftlock(player, active, debouncer)
+	if debouncer then
+		print(debouncer.Value)
+	end
+	if debouncer and debouncer.Value == true then return 
+	elseif not debouncer then
+		print("no debouncer")
+	end
+	print("ran")
+	local runservice = game:GetService("RunService")
+	local uis = game:GetService("UserInputService")
+	local hum = player.Character:FindFirstChild("Humanoid")
+	local humroot = player.Character:FindFirstChild("HumanoidRootPart")
+	
+	if active then
+		hum.CameraOffset = Vector3.new(1.75,0,0) 
+		hum.AutoRotate = false
+		runservice:BindToRenderStep("ShiftLock", Enum.RenderPriority.Character.Value, function()
+			uis.MouseBehavior = Enum.MouseBehavior.LockCenter 
+			local _, y = workspace.CurrentCamera.CFrame.Rotation:ToEulerAnglesYXZ() 
+			humroot.CFrame = CFrame.new(humroot.Position) * CFrame.Angles(0,y,0) 
+		end)
+	else
+		hum.CameraOffset = Vector3.new(0,0,0)
+		runservice:UnbindFromRenderStep("ShiftLock")
+		uis.MouseBehavior = Enum.MouseBehavior.Default
+		hum.AutoRotate = true
+	end
+end
+
+return lock
